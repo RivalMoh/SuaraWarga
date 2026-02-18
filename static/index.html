@@ -251,6 +251,53 @@
             border-left: 4px solid #3498db;
         }
         
+        /* Emergency Call Button */
+        .emergency-call-box {
+            margin-top: 15px;
+            padding: 15px;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .emergency-call-text {
+            color: white;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+        
+        #callEmergencyBtn {
+            width: 100%;
+            background: white;
+            color: #e74c3c;
+            padding: 15px 20px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        #callEmergencyBtn:hover {
+            background: #f8f9fa;
+            transform: scale(1.02);
+        }
+        
+        .phone-icon {
+            font-size: 1.3em;
+            animation: ring 1s ease-in-out infinite;
+        }
+        
+        @keyframes ring {
+            0%, 100% { transform: rotate(0deg); }
+            10%, 30% { transform: rotate(-15deg); }
+            20%, 40% { transform: rotate(15deg); }
+        }
+        
         .loading {
             display: none;
             text-align: center;
@@ -401,6 +448,17 @@
             <div class="transcription-box">
                 <div class="result-label">🎙️ Transkripsi Suara</div>
                 <div id="resTranscription">-</div>
+            </div>
+            
+            <!-- Emergency Call Button -->
+            <div class="emergency-call-box">
+                <div class="emergency-call-text">
+                    ⚠️ Dalam keadaan darurat? Hubungi Call Center
+                </div>
+                <button id="callEmergencyBtn">
+                    <span class="phone-icon">📞</span>
+                    <span>Telepon nomor testing</span> <!-- Change text to "Telepon 112" for actual emergency number -->
+                </button>
             </div>
         </div>
         
@@ -786,7 +844,16 @@
         }
 
         // =============================================================================
-        // 9. LOAD HISTORY
+        // 9. EMERGENCY CALL
+        // =============================================================================
+        
+        document.getElementById('callEmergencyBtn').addEventListener('click', function() {
+            // Initiate phone call to 112
+            window.location.href = 'tel:085328900157'; // Change to 'tel:112' for actual emergency number       
+        });
+
+        // =============================================================================
+        // 10. LOAD HISTORY
         // =============================================================================
         
         async function loadHistory() {
@@ -834,7 +901,7 @@
         loadHistory();
 
         // =============================================================================
-        // 10. PWA INSTALL
+        // 11. PWA INSTALL
         // =============================================================================
         
         window.addEventListener('beforeinstallprompt', (e) => {
@@ -858,7 +925,7 @@
         });
 
         // =============================================================================
-        // 11. SERVICE WORKER
+        // 12. SERVICE WORKER
         // =============================================================================
         
         if ('serviceWorker' in navigator) {
