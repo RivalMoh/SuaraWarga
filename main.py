@@ -13,17 +13,14 @@ import soundfile as sf
 from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 import sqlite3
-from pydantic import BaseModel
 from typing import Optional
 import uvicorn
+import uuid
+import logging
 
 # =============================================================================
 # App Configuration
 # =============================================================================
-class GPSData(BaseModel):
-    latitude: float
-    longitude: float
-
 app = FastAPI(
     title="SuaraWarga API",
     description="Voice-based disaster reporting system for Indonesian citizens",
@@ -43,7 +40,6 @@ origins = [
     "http://127.0.0.1",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    "*"
 ]
 
 app.add_middleware(
@@ -60,8 +56,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # =============================================================================
 # Gemini Client Setup
 # =============================================================================
-GEMINI_API_KEY = "AIzaSyD0YsAOP6d3lRjN4TBp8OdUOx0dTy3eTEQ"
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 
@@ -94,6 +89,8 @@ def init_db():
 
 init_db()
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 # =============================================================================
 # Audio Processing Functions
 # =============================================================================
@@ -124,7 +121,7 @@ def validate_audio(file_path: str) -> dict:
         total_frames = len(rms_frames)
         speech_ratio = non_silent_frames / total_frames if total_frames > 0 else 0
 
-        print (f"Audio duration: {duration:.2f}s, RMS: {rms:.4f}, Speech ratio: {speech_ratio:.2%}")
+        logging.info(f"Audio duration: {duration:.2f}s, RMS: {rms:.4f}, Speech ratio: {speech_ratio:.2%}")
 
         # validation checks
         if duration < MIN_AUDIO_DURATION:
@@ -154,7 +151,7 @@ def validate_audio(file_path: str) -> dict:
         }
     
     except Exception as e:
-        print (f"Audio validation error: {e}")
+        logging.error(f"Audio validation error: {e}")
         return {
             "valid": False,
             "reason": f"Gagal memvalidasi audio: {str(e)}",
@@ -168,7 +165,7 @@ def clean_audio(input_path: str, output_path: str) -> str:
     Remove background noise from audio file.
     """
     data, rate = librosa.load(input_path, sr=None)
-    reduced_noise = nr.reduce_noise(y=data, sr=rate, prop_decrease=1.0)
+    reduced_noise = nr.reduce_noise(y=data, sr=rate, prop_decrease=0.8)
     sf.write(output_path, reduced_noise, rate)
     return output_path
 
@@ -177,11 +174,11 @@ def upload_audio_to_gemini(file_path: str):
     """
     Upload audio file to Gemini and wait for processing.
     """
-    print(f"Uploading {file_path} to Gemini...")
+    logging.info(f"Uploading {file_path} to Gemini...")
     audio_file = client.files.upload(file=file_path)
     
     while audio_file.state.name == "PROCESSING":
-        print("Processing audio...")
+        logging.info("Processing audio...")
         time.sleep(1)
         audio_file = client.files.get(name=audio_file.name)
     
@@ -203,7 +200,8 @@ def analyze_audio_with_gemini(audio_file, location_context: str) -> dict:
         Parsed JSON response with transcription and extracted data
     """
     prompt = """
-    Listen to this audio recording carefully. It is supposed to be a disaster report in Indonesian.
+    Listen to this audio recording carefully. It is supposed to be a disaster report in Indonesian language.
+    The audio is in Bahasa Indonesia. transcribe in indonesia, not in Japanese or other languages.
     The speaker might use local dialects, slang, or speak fast. There might be background noise.
     
     IMPORTANT RULES:
@@ -225,38 +223,46 @@ def analyze_audio_with_gemini(audio_file, location_context: str) -> dict:
     For VALID disaster reports, extract:
     - "transcription": The exact words spoken by the user (must not be empty).
     - "location": The specific place mentioned. If not mentioned, use GPS context.
-    - "hazard": The type of disaster (Banjir, Longsor, Gempa, Kebakaran, etc).
+    - "hazard": The type of disaster (Banjir, Longsor, Gempa, Kebakaran, Tsunami, Angin Puting Beliung, Kekeringan, Erupsi Vulkanik, dan lain-lain).
     - "severity": Critical, High, Medium, or Low based on urgency.
     - "description": A brief summary of the incident in Indonesian.
+    - "confidence": A number between 0 and 1 indicating how confident you are in the extraction (optional but helpful).
     
     Output ONLY valid JSON without markdown formatting.
     
     Valid report example:
-    {"transcription": "Tolong ada banjir di jalan pemuda", "location": "Jalan Pemuda", "hazard": "Banjir", "severity": "High", "description": "Laporan banjir di Jalan Pemuda"}
+    {"transcription": "Tolong ada banjir di jalan pemuda", "location": "Jalan Pemuda", "hazard": "Banjir", "severity": "High", "description": "Laporan banjir di Jalan Pemuda", "confidence": 0.95}
     
     Invalid/silent example:
     {"error": "NO_SPEECH", "message": "Tidak ada suara yang dapat dikenali"}
     """.replace("LOCATION_CONTEXT_PLACEHOLDER", location_context)
+
+    try:
+        logging.info(f"Analyzing audio with {GEMINI_MODEL}...")
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[prompt, audio_file]
+        )
+        
+        raw_text = response.text
+        logging.info(f"Raw AI response: {raw_text}")
+        
+        # Clean up the response to get pure JSON
+        json_text = raw_text.replace("```json", "").replace("```", "").strip()
+        
+        # Find JSON object in response (fallback)
+        start_idx = json_text.find("{")
+        end_idx = json_text.rfind("}") + 1
+        if start_idx != -1 and end_idx > start_idx:
+            json_text = json_text[start_idx:end_idx]
+        
+        return json.loads(json_text)
     
-    print(f"Analyzing audio with {GEMINI_MODEL}...")
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[prompt, audio_file]
-    )
-    
-    raw_text = response.text
-    print(f"Raw AI response: {raw_text}")
-    
-    # Clean up the response to get pure JSON
-    json_text = raw_text.replace("```json", "").replace("```", "").strip()
-    
-    # Find JSON object in response (fallback)
-    start_idx = json_text.find("{")
-    end_idx = json_text.rfind("}") + 1
-    if start_idx != -1 and end_idx > start_idx:
-        json_text = json_text[start_idx:end_idx]
-    
-    return json.loads(json_text)
+    except json.JSONDecodeError as e:
+        logging.error(f"JSON parsing error: {e}")
+        return {
+            "error": "JSON_PARSE_ERROR",
+            "message": "Gagal memparsing respons AI, silahkan coba lagi."}
 
 
 def cleanup_files(*file_paths: str) -> None:
@@ -264,7 +270,7 @@ def cleanup_files(*file_paths: str) -> None:
     for file_path in file_paths:
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
-            print(f"Cleaned up: {file_path}")
+            logging.info(f"Cleaned up: {file_path}")
 
 
 def get_location_from_coordinates(lat: float, lng: float) -> str:
@@ -279,7 +285,7 @@ def get_location_from_coordinates(lat: float, lng: float) -> str:
         Human-readable address string
     """
     try:
-        print(f"Reverse geocoding: ({lat}, {lng})")
+        logging.info(f"Reverse geocoding: ({lat}, {lng})")
         location = reverse_geocode((lat, lng), language="id")
         
         if location:
@@ -287,7 +293,7 @@ def get_location_from_coordinates(lat: float, lng: float) -> str:
         return "Lokasi tidak diketahui"
         
     except Exception as e:
-        print(f"Reverse geocoding error: {e}")
+        logging.error(f"Reverse geocoding error: {e}")
         return "Lokasi tidak diketahui"
 
 
@@ -303,7 +309,7 @@ def get_coordinates_from_location(location_name: str) -> dict | None:
     """
     try:
         search_query = f"{location_name}, Indonesia"
-        print(f"Forward geocoding: {search_query}")
+        logging.info(f"Forward geocoding: {search_query}")
         
         location = forward_geocode(search_query)
         
@@ -316,7 +322,7 @@ def get_coordinates_from_location(location_name: str) -> dict | None:
         return None
         
     except Exception as e:
-        print(f"Forward geocoding error: {e}")
+        logging.error(f"Forward geocoding error: {e}")
         return None
 
 
@@ -343,11 +349,24 @@ def list_models():
 
 
 @app.get("/api/reports")
-def get_reports():
+def get_reports(page: int = 1, limit: int = 20):
     """Get all disaster reports from database."""
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:
+        limit = 20
+
+    offset = (page - 1) * limit
+
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("SELECT location, hazard, severity, latitude, longitude FROM reports")
+
+    c.execute("SELECT COUNT(*) FROM reports")
+    total_reports = c.fetchone()[0]
+
+    c.execute(
+        "SELECT location, hazard, severity, latitude, longitude FROM reports LIMIT ? OFFSET ?", (limit, offset)
+    )
     rows = c.fetchall()
     conn.close()
     
@@ -360,7 +379,14 @@ def get_reports():
             "lat": r[3],
             "long": r[4]
         })
-    return data
+        
+    return {
+        "data": data,
+        "total": total_reports,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total_reports + limit - 1) // limit
+    }
 
 
 @app.post("/report")
@@ -387,20 +413,25 @@ async def report_incident(
             detail=f"Invalid file type. Supported formats: {valid_extensions}"
         )
 
-    temp_filename = f"temp_{file.filename}"
-    cleaned_filename = f"cleaned_{file.filename}"
+    temp_filename = f"temp_{uuid.uuid4().hex}{file_ext}"
+    cleaned_filename = f"cleaned_{uuid.uuid4().hex}{file_ext}"
 
     try:
         # upload file to temporary location
         content = await file.read()
+        
+        # limit file size to 10MB
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File size exceeds 10MB limit.")
+        
         with open(temp_filename, "wb") as buffer:
             buffer.write(content)
-        print(f"Saved temporary file: {temp_filename}")
+        logging.info(f"Saved temporary file: {temp_filename}")
 
         # validate audio
         validation = validate_audio(temp_filename)
         if not validation["valid"]:
-            print (f"Audio validation failed: {validation['reason']}")
+            logging.warning(f"Audio validation failed: {validation['reason']}")
             return {
                 "status": "error",
                 "error_type": "INVALID_AUDIO",
@@ -413,7 +444,7 @@ async def report_incident(
         
         # clean the audio
         clean_audio(temp_filename, cleaned_filename)
-        print(f"Audio cleaned: {cleaned_filename}")
+        logging.info(f"Audio cleaned: {cleaned_filename}")
 
         # Get location from GPS if provided
         location_context = "Tidak tersedia (GPS tidak aktif)"
@@ -422,16 +453,32 @@ async def report_incident(
         if latitude is not None and longitude is not None:
             user_coords = {"lat": latitude, "long": longitude}
             location_context = get_location_from_coordinates(latitude, longitude)
-            print(f"User location from GPS: {location_context}")
+            logging.info(f"User location from GPS: {location_context}")
         else:
-            print("No GPS coordinates provided")
+            logging.warning("No GPS coordinates provided")
 
         # Upload audio to Gemini
         audio_file = upload_audio_to_gemini(cleaned_filename)
 
         # Analyze audio with Gemini
         result = analyze_audio_with_gemini(audio_file, location_context)
-        print(f"Analysis result: {result}")
+        logging.info(f"Analysis result: {result}")
+
+        if result.get("confidence") < 0.4:
+            logging.warning(f"Low confidence in AI extraction: {result.get('confidence')}")
+            return {
+                "status": "error",
+                "error_type": "LOW_CONFIDENCE",
+                "message": "AI tidak yakin dengan hasil ekstraksi, silakan coba lagi dengan suara yang lebih jelas."
+            }
+
+        if "error" in result:
+            logging.error(f"AI analysis error: {result['message']}")
+            return {
+                "status": "error",
+                "error_type": result["error"],
+                "message": result["message"]
+            }
 
         # get coordinates for the location mentioned in report
         final_coords = None
@@ -467,7 +514,7 @@ async def report_incident(
                   ))
         conn.commit()
         conn.close()
-        print("Report stored in database.")
+        logging.info("Report stored in database.")
 
         return {
             "status": "success",
@@ -475,16 +522,16 @@ async def report_incident(
         }
         
     except json.JSONDecodeError as e:
-        print(f"JSON parsing error: {e}")
+        logging.error(f"JSON parsing error: {e}")
         raise HTTPException(
             status_code=500, 
             detail="Failed to parse AI response as JSON"
         )
     except ValueError as e:
-        print(f"Processing error: {e}")
+        logging.error(f"Processing error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logging.error(f"Unexpected error: {e}")
         raise HTTPException(
             status_code=500, 
             detail=f"An error occurred: {str(e)}"

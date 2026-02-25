@@ -251,53 +251,6 @@
             border-left: 4px solid #3498db;
         }
         
-        /* Emergency Call Button */
-        .emergency-call-box {
-            margin-top: 15px;
-            padding: 15px;
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            border-radius: 12px;
-            text-align: center;
-        }
-        
-        .emergency-call-text {
-            color: white;
-            font-size: 0.85em;
-            margin-bottom: 10px;
-            opacity: 0.9;
-        }
-        
-        #callEmergencyBtn {
-            width: 100%;
-            background: white;
-            color: #e74c3c;
-            padding: 15px 20px;
-            font-size: 1.1em;
-            font-weight: bold;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        
-        #callEmergencyBtn:hover {
-            background: #f8f9fa;
-            transform: scale(1.02);
-        }
-        
-        .phone-icon {
-            font-size: 1.3em;
-            animation: ring 1s ease-in-out infinite;
-        }
-        
-        @keyframes ring {
-            0%, 100% { transform: rotate(0deg); }
-            10%, 30% { transform: rotate(-15deg); }
-            20%, 40% { transform: rotate(15deg); }
-        }
-        
         .loading {
             display: none;
             text-align: center;
@@ -449,23 +402,17 @@
                 <div class="result-label">🎙️ Transkripsi Suara</div>
                 <div id="resTranscription">-</div>
             </div>
-            
-            <!-- Emergency Call Button -->
-            <div class="emergency-call-box">
-                <div class="emergency-call-text">
-                    ⚠️ Dalam keadaan darurat? Hubungi Call Center
-                </div>
-                <button id="callEmergencyBtn">
-                    <span class="phone-icon">📞</span>
-                    <span>Telepon nomor testing</span> <!-- Change text to "Telepon 112" for actual emergency number -->
-                </button>
-            </div>
         </div>
         
         <div class="history-section">
             <div class="history-title">📋 Riwayat Laporan</div>
             <div id="historyList">
                 <p style="color: #999; text-align: center; font-size: 0.9em;">Belum ada laporan</p>
+            </div>
+            <div id="pagination" style="display:none; text-align:center; margin-top:10px; gap:8px; justify-content:center; align-items:center;">
+                <button id="prevPage" style="padding:8px 14px; border-radius:8px; font-size:0.85em;">← Prev</button>
+                <span id="pageInfo" style="font-size:0.85em; color:#666;"></span>
+                <button id="nextPage" style="padding:8px 14px; border-radius:8px; font-size:0.85em;">Next →</button>
             </div>
         </div>
     </div>
@@ -684,7 +631,7 @@
                     }
                     
                     showMinTimeWarning(false);
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     await sendReport(audioBlob);
                     audioChunks = [];
                 };
@@ -759,7 +706,7 @@
         
         async function sendReport(audioBlob) {
             const formData = new FormData();
-            formData.append("file", audioBlob, "report.wav");
+            formData.append("file", audioBlob, "report.webm");
             
             if (userCoords) {
                 formData.append("latitude", userCoords.lat);
@@ -844,64 +791,111 @@
         }
 
         // =============================================================================
-        // 9. EMERGENCY CALL
+        // 9. LOAD HISTORY
         // =============================================================================
-        
-        document.getElementById('callEmergencyBtn').addEventListener('click', function() {
-            // Initiate phone call to 112
-            window.location.href = 'tel:085328900157'; // Change to 'tel:112' for actual emergency number       
-        });
+        let currentPage = 1;
+        const pageLimit = 5;
 
-        // =============================================================================
-        // 10. LOAD HISTORY
-        // =============================================================================
-        
-        async function loadHistory() {
+        async function loadHistory(page = 1) {
             try {
-                const response = await fetch('/api/reports');
+                const response = await fetch(`/api/reports?page=${page}&limit=${pageLimit}`);
                 const data = await response.json();
                 
                 const historyList = document.getElementById('historyList');
+                const pagination = document.getElementById('pagination');
                 
                 if (data.length === 0) {
                     historyList.innerHTML = '<p style="color: #999; text-align: center; font-size: 0.9em;">Belum ada laporan</p>';
+                    pagination.style.display = "none";
                     return;
                 }
+
+                currentPage = data.page;
                 
-                const recentReports = data.slice(-5).reverse();
-                
-                historyList.innerHTML = recentReports.map(report => `
-                    <div class="history-item">
-                        <div class="history-item-header">
-                            <span class="history-hazard">⚠️ ${report.hazard || "Bencana"}</span>
-                            <span class="severity-badge severity-${(report.severity || "").toLowerCase()}">${report.severity || "?"}</span>
-                        </div>
-                        <div class="history-location">📍 ${report.location || "Lokasi tidak diketahui"}</div>
-                    </div>
-                `).join('');
-                
-                // Clear old markers
-                eventMarkers.forEach(m => map.removeLayer(m));
-                eventMarkers = [];
-                
-                data.forEach(report => {
-                    if (report.lat && report.long) {
-                        const marker = L.marker([report.lat, report.long], { icon: eventIcon })
-                            .addTo(map)
-                            .bindPopup(`<b>⚠️ ${report.hazard || "Bencana"}</b><br>📍 ${report.location || "Lokasi"}`);
-                        eventMarkers.push(marker);
-                    }
+                // Build history items safely (XSS prevention)
+                historyList.innerHTML = '';
+                result.reports.forEach(report => {
+                    const item = document.createElement('div');
+                    item.className = 'history-item';
+                    
+                    const header = document.createElement('div');
+                    header.className = 'history-item-header';
+                    
+                    const hazardSpan = document.createElement('span');
+                    hazardSpan.className = 'history-hazard';
+                    hazardSpan.textContent = '⚠️ ' + (report.hazard || 'Bencana');
+                    
+                    const severitySpan = document.createElement('span');
+                    const severity = (report.severity || '').toLowerCase();
+                    severitySpan.className = 'severity-badge severity-' + severity;
+                    severitySpan.textContent = report.severity || '?';
+                    
+                    header.appendChild(hazardSpan);
+                    header.appendChild(severitySpan);
+                    
+                    const locationDiv = document.createElement('div');
+                    locationDiv.className = 'history-location';
+                    locationDiv.textContent = '📍 ' + (report.location || 'Lokasi tidak diketahui');
+                    
+                    item.appendChild(header);
+                    item.appendChild(locationDiv);
+                    historyList.appendChild(item);
                 });
+                
+                // Update pagination controls
+                if (result.total_pages > 1) {
+                    pagination.style.display = 'flex';
+                    document.getElementById('pageInfo').textContent = `Hal ${result.page} / ${result.total_pages} (${result.total} laporan)`;
+                    document.getElementById('prevPage').disabled = (result.page <= 1);
+                    document.getElementById('nextPage').disabled = (result.page >= result.total_pages);
+                } else {
+                    pagination.style.display = 'none';
+                }
+                
+                // Load markers for all reports on first page only
+                if (page === 1) {
+                    eventMarkers.forEach(m => map.removeLayer(m));
+                    eventMarkers = [];
+                    
+                    result.reports.forEach(report => {
+                        if (report.lat && report.long) {
+                            const popupDiv = document.createElement('div');
+                            const b = document.createElement('b');
+                            b.textContent = '⚠️ ' + (report.hazard || 'Bencana');
+                            const br = document.createElement('br');
+                            const locText = document.createTextNode('📍 ' + (report.location || 'Lokasi'));
+                            popupDiv.appendChild(b);
+                            popupDiv.appendChild(br);
+                            popupDiv.appendChild(locText);
+                            
+                            const marker = L.marker([report.lat, report.long], { icon: eventIcon })
+                                .addTo(map)
+                                .bindPopup(popupDiv);
+                            eventMarkers.push(marker);
+                        }
+                    });
+                }
                 
             } catch (error) {
                 console.error("Failed to load history:", error);
             }
         }
 
-        loadHistory();
+        // Pagination button events
+        document.getElementById('prevPage').addEventListener('click', () => {
+            if (currentPage > 1) {
+                loadHistory(currentPage - 1);
+            }
+        });
+
+        document.getElementById('nextPage').addEventListener('click', () => {
+            loadHistory(currentPage + 1);
+        });
+
+        loadHistory(1);
 
         // =============================================================================
-        // 11. PWA INSTALL
+        // 10. PWA INSTALL
         // =============================================================================
         
         window.addEventListener('beforeinstallprompt', (e) => {
@@ -925,7 +919,7 @@
         });
 
         // =============================================================================
-        // 12. SERVICE WORKER
+        // 11. SERVICE WORKER
         // =============================================================================
         
         if ('serviceWorker' in navigator) {
