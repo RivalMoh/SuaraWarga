@@ -1,6 +1,7 @@
 from google import genai
+import os
 
-client = genai.Client(api_key="AIzaSyD0YsAOP6d3lRjN4TBp8OdUOx0dTy3eTEQ")
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 print("Available models:")
 for model in client.models.list():
