@@ -17,7 +17,8 @@ from typing import Optional
 import uvicorn
 import uuid
 import logging
-
+from dotenv import load_dotenv
+load_dotenv()
 # =============================================================================
 # App Configuration
 # =============================================================================
@@ -56,7 +57,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # =============================================================================
 # Gemini Client Setup
 # =============================================================================
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+api_key = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key)
 GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 
@@ -379,7 +381,7 @@ def get_reports(page: int = 1, limit: int = 20):
             "lat": r[3],
             "long": r[4]
         })
-        
+
     return {
         "data": data,
         "total": total_reports,
