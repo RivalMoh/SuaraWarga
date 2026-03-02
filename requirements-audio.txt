@@ -1,0 +1,7 @@
+# Requires system dependency: ffmpeg
+# Install with: sudo apt install ffmpeg  (Linux)
+#               brew install ffmpeg      (Mac)
+librosa==0.10.1
+soundfile==0.13.1
+noisereduce==3.0.3
+numpy==2.3.5

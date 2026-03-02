@@ -1,7 +1,20 @@
-venv/
+# Environment
+.env
+
+# Database
+*.db
+data/
+
+# Temp audio files
+data/tmp_*
+data/clean_*
+
+# Python
 __pycache__/
 *.pyc
-instance/
-.env
-.DS_Store
-*.db
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
