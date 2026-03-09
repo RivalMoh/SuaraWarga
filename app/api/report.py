@@ -5,6 +5,7 @@ from app.services.audio_service import validate_audio, reduce_noise
 from app.services.ai_service import analyze_report
 from app.services.geo_service import get_location_name, get_coordinates
 from app.db.models import insert_report
+import uuid
 
 router = APIRouter()
 
@@ -18,8 +19,10 @@ async def submit_report(
     MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
     ALLOWED_EXTENSIONS = {".webm", ".wav", ".mp3", ".m4a", ".ogg"}
 
-    tmp_path = f"data/tmp_{int(time.time())}.webm"
-    cleaned_path = f"data/clean_{int(time.time())}.wav"
+    os.makedirs("data", exist_ok=True)
+    unique_id = uuid.uuid4().hex[:12]
+    tmp_path = f"data/tmp_{unique_id}.webm"
+    cleaned_path = f"data/clean_{unique_id}.wav"
 
     # Basic file type validation before saving
     filename = file.filename or ""

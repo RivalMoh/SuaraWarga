@@ -1,7 +1,9 @@
 import sqlite3
 from app.config import DB_NAME
+import os
 
 def get_connection():
+    os.makedirs(os.path.dirname(DB_NAME), exist_ok=True)
     return sqlite3.connect(DB_NAME)
 
 def init_db():

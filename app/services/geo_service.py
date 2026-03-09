@@ -10,15 +10,16 @@ def get_location_name(lat: float, lon: float) -> str:
         location = reverse_geocode((lat, lon), language='id')
         return location.address if location else None
     except Exception as e:
-        return None
+        return {
+            "location": None,
+        }
 
 def get_coordinates(location_name: str) -> dict:
     try:
         location = forward_geocode(location_name, language='id')
         if location:
-            return {"latitude": location.latitude, "longitude": location.longitude}
-        return None
+            return {"lat": location.latitude, "long": location.longitude}
     except Exception as e:
         pass
     
-    return {"lat":None, "lon":None}
+    return {"lat":None, "long":None}

@@ -4,6 +4,7 @@
 # Database
 *.db
 data/
+data/*.db
 
 # Temp audio files
 data/tmp_*

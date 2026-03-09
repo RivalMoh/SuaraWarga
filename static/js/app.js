@@ -374,7 +374,7 @@ async function loadHistory(page = 1) {
         const historyList = document.getElementById('historyList');
         const pagination = document.getElementById('pagination');
         
-        if (data.length === 0) {
+        if (!data.reports || data.reports.length === 0) {
             historyList.innerHTML = '<p style="color: #999; text-align: center; font-size: 0.9em;">Belum ada laporan</p>';
             pagination.style.display = "none";
             return;
@@ -415,7 +415,7 @@ async function loadHistory(page = 1) {
         // Update pagination controls
         if (data.total_pages > 1) {
             pagination.style.display = 'flex';
-            document.getElementById('pageInfo').textContent = `Hal ${data.page} / ${data.total_pages} (${data.total} laporan)`;
+            document.getElementById('pageInfo').textContent = `Hal ${data.page} / ${data.total_pages} (${data.total_reports} laporan)`;
             document.getElementById('prevPage').disabled = (data.page <= 1);
             document.getElementById('nextPage').disabled = (data.page >= data.total_pages);
         } else {
@@ -428,7 +428,7 @@ async function loadHistory(page = 1) {
             eventMarkers = [];
             
             data.reports.forEach(report => {
-                if (report.lat && report.long) {
+                if (report.latitude && report.longitude) {
                     const popupDiv = document.createElement('div');
                     const b = document.createElement('b');
                     b.textContent = '⚠️ ' + (report.hazard || 'Bencana');
@@ -438,7 +438,7 @@ async function loadHistory(page = 1) {
                     popupDiv.appendChild(br);
                     popupDiv.appendChild(locText);
                     
-                    const marker = L.marker([report.lat, report.long], { icon: eventIcon })
+                    const marker = L.marker([report.latitude, report.longitude], { icon: eventIcon })
                         .addTo(map)
                         .bindPopup(popupDiv);
                     eventMarkers.push(marker);

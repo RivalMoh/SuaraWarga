@@ -12,7 +12,6 @@ def analyze_report(audio_path: str, location_context: str) -> dict:
     The audio is in Bahasa Indonesia. transcribe in indonesia, not in Japanese or other languages.
     The speaker might use local dialects, slang, or speak fast. There might be background noise.
     {"Location context: " + location_context if location_context else ""}
-    The reporter's GPS location is: LOCATION_CONTEXT_PLACEHOLDER
     Use this location as reference to help clarify ambiguous place names, especially if the speaker 
     doesn't mention a specific location or the place name is common/exists in multiple regions.
 
