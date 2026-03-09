@@ -4,7 +4,7 @@ def insert_report(data: dict):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO reports (transcription, location, hazard, severity, description, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        INSERT INTO reports (transcription, location, hazard, severity, description, latitude, longitude, confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
         (
             data.get("transcription"),
             data.get("location"),
@@ -13,6 +13,7 @@ def insert_report(data: dict):
             data.get("description"),
             data.get("latitude"),
             data.get("longitude"),
+            data.get("confidence")
         )
     )
     conn.commit()
@@ -26,7 +27,7 @@ def get_reports(page: int=1, limit: int=5):
     cursor.execute("SELECT COUNT(*) FROM reports")
     total_reports = cursor.fetchone()[0]
 
-    cursor.execute('''SELECT id, hazard, severity, location, latitude, longitude FROM reports LIMIT ? OFFSET ?''', 
+    cursor.execute('''SELECT id, hazard, severity, location, latitude, longitude, confidence FROM reports LIMIT ? OFFSET ?''', 
                    (limit, offset))
     
     rows = cursor.fetchall()
@@ -39,7 +40,8 @@ def get_reports(page: int=1, limit: int=5):
             "severity": row[2],
             "location": row[3],
             "latitude": row[4],
-            "longitude": row[5]
+            "longitude": row[5],
+            "confidence": row[6]
         }
         for row in rows
     ]

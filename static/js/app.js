@@ -345,6 +345,7 @@ function displayResult(data) {
     document.getElementById('resLocation').innerText = data.location || "Tidak disebutkan";
     document.getElementById('resDescription').innerText = data.description || "-";
     document.getElementById('resTranscription').innerText = data.transcription || "-";
+    document.getElementById('resConfidence').innerText = (data.confidence !== undefined) ? (data.confidence * 100).toFixed(2) + '%' : "Tidak diketahui";
     
     if (data.coordinates && data.coordinates.lat && data.coordinates.long) {
         addEventMarker(data.coordinates.lat, data.coordinates.long, data.hazard, data.location);
@@ -380,7 +381,7 @@ async function loadHistory(page = 1) {
             return;
         }
 
-        currentPage = data.page;
+        currentPage = data.current_page;
         
         // Build history items safely (XSS prevention)
         historyList.innerHTML = '';
@@ -407,17 +408,22 @@ async function loadHistory(page = 1) {
             locationDiv.className = 'history-location';
             locationDiv.textContent = '📍 ' + (report.location || 'Lokasi tidak diketahui');
             
+            const confidenceDiv = document.createElement('div');
+            confidenceDiv.className = 'history-confidence';
+            confidenceDiv.textContent = '📊 ' + (report.confidence !== undefined ? (report.confidence * 100).toFixed(2) + '%' : 'Tidak diketahui');
+            
             item.appendChild(header);
             item.appendChild(locationDiv);
+            item.appendChild(confidenceDiv);
             historyList.appendChild(item);
         });
         
         // Update pagination controls
         if (data.total_pages > 1) {
             pagination.style.display = 'flex';
-            document.getElementById('pageInfo').textContent = `Hal ${data.page} / ${data.total_pages} (${data.total_reports} laporan)`;
-            document.getElementById('prevPage').disabled = (data.page <= 1);
-            document.getElementById('nextPage').disabled = (data.page >= data.total_pages);
+            document.getElementById('pageInfo').textContent = `Hal ${data.current_page} / ${data.total_pages} (${data.total_reports} laporan)`;
+            document.getElementById('prevPage').disabled = (data.current_page <= 1);
+            document.getElementById('nextPage').disabled = (data.current_page >= data.total_pages);
         } else {
             pagination.style.display = 'none';
         }
@@ -434,10 +440,12 @@ async function loadHistory(page = 1) {
                     b.textContent = '⚠️ ' + (report.hazard || 'Bencana');
                     const br = document.createElement('br');
                     const locText = document.createTextNode('📍 ' + (report.location || 'Lokasi'));
+                    const confText = document.createTextNode('📊 ' + (report.confidence !== undefined ? (report.confidence * 100).toFixed(2) + '%' : 'Tidak diketahui'));
                     popupDiv.appendChild(b);
                     popupDiv.appendChild(br);
                     popupDiv.appendChild(locText);
-                    
+                    popupDiv.appendChild(confText);
+
                     const marker = L.marker([report.latitude, report.longitude], { icon: eventIcon })
                         .addTo(map)
                         .bindPopup(popupDiv);

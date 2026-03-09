@@ -63,29 +63,36 @@ async def submit_report(
         location_context = None
         if latitude and longitude:
             location_context = get_location_name(latitude, longitude)
+            
+        try:
+            result = analyze_report(cleaned_path, location_context)
 
-        result = analyze_report(cleaned_path, location_context)
+            if result.get("validation") != "OK":
+                return {
+                    "status": "error",
+                    "error_type": result.get("validation"),
+                    "message": "Laporan tidak teridentifikasi sebagai bencana."
+                }
 
-        if not result.get("is_disaster"):
+            coords = get_coordinates(result.get("location", ""))
+
+            # save to DB
+            insert_report({
+                **result,
+                "latitude": coords.get("lat"),
+                "longitude": coords.get("long"),
+            })
+
+            return {
+                "status": "success", 
+                "data": {**result, "coordinates": coords}
+            }
+        except Exception as e:
             return {
                 "status": "error",
-                "error_type": result.get("validation"),
-                "message": "Laporan tidak teridentifikasi sebagai bencana."
+                "error_type": "processing_error",
+                "message": f"Terjadi kesalahan saat memproses laporan: {str(e)}"
             }
-
-        coords = get_coordinates(result.get("location", ""))
-
-        # save to DB
-        insert_report({
-            **result,
-            "latitude": coords.get("lat"),
-            "longitude": coords.get("long"),
-        })
-
-        return {
-            "status": "success", 
-            "data": {**result, "coordinates": coords}
-        }
     
     finally:
         for path in [tmp_path, cleaned_path]:

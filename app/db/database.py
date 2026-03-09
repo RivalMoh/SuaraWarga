@@ -17,6 +17,7 @@ def init_db():
         hazard TEXT,
         severity TEXT,
         description TEXT,
+        confidence REAL,
         latitude REAL,
         longitude REAL,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP               
