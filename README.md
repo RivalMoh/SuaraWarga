@@ -3,6 +3,12 @@ ffmpeg
 
 problem to validate the sound is really record or just noise or blank record
 
+# Production
+pip install -r requirements.txt -r requirements-audio.txt
+
+# Development
+pip install -r requirements.txt -r requirements-audio.txt -r requirements-dev.txt
+
 
 Flow:
     1. Receive audio file + GPS coordinates (optional) from frontend
