@@ -19,7 +19,7 @@ def analyze_report(audio_path: str, location_context: str) -> dict:
     
     For VALID disaster reports, extract:
     - "transcription": The exact words spoken by the user (must not be empty).
-    - "location": The specific place mentioned in the audio but use the CONTEXT to clarify if needed like user just say "jalan Pemuda" but you should complete it with city and province be like "Jalan Pemuda, Kota Semarang, Jawa Tengah". If no location is mentioned, try use the location context to estimated it.
+    - "location": The specific place mentioned in the audio but use the CONTEXT to clarify if needed like user just say "jalan Pemuda" but you should complete it with city and province be like "Jalan Pemuda, Kota Semarang, Jawa Tengah". If no location is mentioned, try use the location context to estimated it. for example if the location context is in Semarang, and the user just say "jalan Pemuda" you can estimated it to be "Jalan Pemuda, Kota Semarang, Jawa Tengah" or if like the user just say the name of building try to find the address by combine with context location for example user just say "masjid at takwa" and context location "Jalan Pemuda, Kota Semarang, Jawa Tengah" estimated the location address "Masjid at takwa, Jalan Pemuda, Kota Semarang, Jawa Tengah". If you can't find any location in the audio and also can't estimated it from the location context, just put "Unknown".
     - "hazard": The type of disaster (Banjir, Longsor, Gempa, Kebakaran, Tsunami, Angin Puting Beliung, Kekeringan, Erupsi Vulkanik, dan lain-lain).
     - "severity": Critical, High, Medium, or Low based on urgency.
     - "description": A brief summary of the incident in Indonesian language.
